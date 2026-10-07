@@ -3,12 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Classroom Live Word Cloud - Before Reading Activity</title>
+    <title>Classroom Live Word Cloud - Join the Zero-Waste Challenge</title>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QR Code Generator -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+    <!-- Canvas Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- MQTT.js for Real-Time Sync on GitHub Pages -->
+    <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
+    <!-- Pretendard Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     
     <style>
         body {
@@ -22,88 +30,45 @@
             from { transform: translateY(0); }
             to { transform: translateY(-6px); }
         }
-        /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
         }
         ::-webkit-scrollbar-track {
-            background: rgba(0,0,0,0.05);
+            background: rgba(15, 23, 42, 0.6);
             border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb {
-            background: rgba(0,0,0,0.2);
+            background: rgba(99, 102, 241, 0.4);
             border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.7);
         }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between overflow-x-hidden">
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-indigo-500 selection:text-white">
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Global Application State Initialization
-        const platformAppId = typeof __app_id !== 'undefined' ? __app_id : 'wordcloud-class-l6br';
-        
-        // Fallback Firebase configuration if running on custom hosting like GitHub Pages
-        const fallbackConfig = {
-            apiKey: "AIzaSyD-placeholder-key-for-standalone",
-            authDomain: "wordcloud-classroom.firebaseapp.com",
-            projectId: "wordcloud-classroom",
-            storageBucket: "wordcloud-classroom.appspot.com",
-            messagingSenderId: "1234567890",
-            appId: "1:1234567890:web:abcdef123456"
-        };
-
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : fallbackConfig;
+    <script>
+        const platformAppId = 'wordcloud-class-l6br';
 
         window.appState = {
-            db: null,
-            auth: null,
-            user: null,
             role: 'landing', // landing, host, student
             roomId: '',
             topic: '"Zero-Waste"라고 하면 떠오르는 것은?',
             wordsMap: {},
-            theme: 'vibrant',
-            appId: platformAppId,
-            unsubscribeDoc: null
+            mqttClients: [],
+            mqttConnected: false,
+            processedMsgIds: new Set(),
+            outboundQueue: []
         };
-
-        // Expose SDK functions globally for window calls
-        window.firestoreSDK = { doc, setDoc, getDoc, updateDoc, onSnapshot, collection };
-
-        try {
-            const app = initializeApp(firebaseConfig);
-            window.appState.db = getFirestore(app);
-            window.appState.auth = getAuth(app);
-
-            const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-            if (token) {
-                await signInWithCustomToken(window.appState.auth, token).catch(() => signInAnonymously(window.appState.auth));
-            } else {
-                await signInAnonymously(window.appState.auth).catch(err => console.warn("Auth warning:", err));
-            }
-
-            onAuthStateChanged(window.appState.auth, (u) => {
-                window.appState.user = u;
-                console.log("Firebase Auth established:", u?.uid);
-                const statusText = document.getElementById('statusText');
-                if (statusText) statusText.innerText = "실시간 연동 준비 완료";
-            });
-        } catch (err) {
-            console.warn("Firestore initialization notice - fallback mode active:", err);
-        }
     </script>
 
-    <!-- TOP NAVIGATION -->
     <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700/60 px-4 py-3 sticky top-0 z-40">
         <div class="max-w-7xl mx-auto flex items-center justify-between">
             <div class="flex items-center gap-3 cursor-pointer" onclick="goHome()">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 font-extrabold text-xl">
-                    <i class="fa-solid font-bold fa-cloud-bolt"></i>
+                    <i class="fa-solid fa-cloud-bolt"></i>
                 </div>
                 <div>
                     <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-indigo-200 bg-clip-text text-transparent">
@@ -114,8 +79,8 @@
 
             <div class="flex items-center gap-2">
                 <div id="connectionStatus" class="flex items-center gap-2 text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-full font-medium">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                    <span id="statusText">실시간 브레인스토밍</span>
+                    <span id="statusPing" class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span id="statusText">실시간 연결 중</span>
                 </div>
                 <button onclick="goHome()" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg transition border border-slate-600">
                     <i class="fa-solid fa-house mr-1"></i> 처음으로
@@ -124,19 +89,16 @@
         </div>
     </header>
 
-    <!-- MAIN CONTAINER -->
     <main class="flex-grow flex flex-col p-4 sm:p-6 max-w-7xl mx-auto w-full">
 
-        <!-- 1. LANDING VIEW (Choice between Student and Teacher) -->
         <section id="landingView" class="my-auto py-8">
             <div class="max-w-2xl mx-auto text-center space-y-8">
                 <h2 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
                     <span class="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Join the Zero-Waste Challenge</span>
                 </h2>
 
-                <!-- Vertical Cards Layout -->
                 <div class="flex flex-col gap-5 pt-2 text-left">
-                    <!-- Student Box (Large & Prominent) -->
+                    <!-- Student Box (Prominent) -->
                     <div class="bg-slate-800/90 border-2 border-purple-500/40 hover:border-purple-500/80 rounded-3xl p-6 sm:p-8 transition shadow-2xl space-y-6">
                         <div class="flex items-center gap-4">
                             <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-purple-600/20 text-purple-400 flex items-center justify-center text-2xl sm:text-3xl border border-purple-500/30 shrink-0">
@@ -171,18 +133,22 @@
                                 <p class="text-xs text-slate-400">대형 화면용 워드클라우드 개설 및 PIN 생성</p>
                             </div>
                         </div>
-                        <button onclick="startHostSession()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm px-5 py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2 shrink-0">
-                            <i class="fa-solid fa-play text-xs"></i>
-                            <span>새 세션 시작</span>
-                        </button>
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <button id="resumeSessionBtn" onclick="resumeHostSession()" class="hidden w-full sm:w-auto bg-slate-700 hover:bg-slate-600 text-indigo-300 font-bold text-sm px-4 py-3 rounded-xl transition border border-indigo-500/40 flex items-center justify-center gap-2 shrink-0">
+                                <i class="fa-solid fa-rotate-left text-xs"></i>
+                                <span>이전 세션 유지</span>
+                            </button>
+                            <button onclick="startHostSession(true)" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm px-5 py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2 shrink-0">
+                                <i class="fa-solid fa-play text-xs"></i>
+                                <span>새 세션 시작</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- 2. TEACHER / HOST VIEW -->
         <section id="hostView" class="hidden space-y-6">
-            <!-- Topic & Control Header -->
             <div class="bg-slate-800 border border-slate-700/80 rounded-2xl p-5 shadow-xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                 <div class="flex-grow space-y-1 w-full lg:w-auto">
                     <div class="flex items-center gap-2 text-xs text-indigo-400 font-semibold uppercase tracking-wider">
@@ -196,7 +162,7 @@
                     </h2>
                 </div>
 
-                <!-- Clickable QR Code & PIN Badge -->
+                <!-- QR Code & PIN Header Badge -->
                 <div id="qrHeaderBadge" onclick="openQrModal()" class="flex items-center gap-3 bg-slate-900/90 hover:bg-slate-900 border border-slate-700 hover:border-indigo-500/80 rounded-xl p-2.5 shrink-0 shadow-inner cursor-pointer transition group" title="클릭하면 QR코드가 크게 확대됩니다">
                     <div class="bg-white p-1 rounded-lg border border-indigo-500/30 shrink-0 group-hover:scale-105 transition">
                         <canvas id="qrCanvas" class="w-12 h-12 pointer-events-none"></canvas>
@@ -213,7 +179,7 @@
                     </div>
                 </div>
 
-                <!-- Stats & Actions -->
+                <!-- Stats & Action Buttons (Including Word Cloud Refresh) -->
                 <div class="flex flex-wrap items-center gap-3 shrink-0">
                     <div class="bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-2 flex items-center gap-3">
                         <div class="text-center">
@@ -227,21 +193,24 @@
                         </div>
                     </div>
 
-                    <!-- Reset Data Button -->
+                    <!-- Cloud Only Refresh Button -->
+                    <button onclick="refreshCloudOnly()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm px-3.5 py-2.5 rounded-xl transition border border-indigo-500/60 flex items-center gap-1.5 shadow-md shadow-indigo-600/20" title="워드클라우드 그림만 새로 고칩니다">
+                        <i id="refreshCloudIcon" class="fa-solid fa-rotate text-xs"></i>
+                        <span>클라우드 갱신</span>
+                    </button>
+
                     <button onclick="openResetConfirmModal()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs sm:text-sm px-3.5 py-2.5 rounded-xl transition border border-slate-600 flex items-center gap-1.5">
                         <i class="fa-solid fa-rotate-right"></i>
                         <span>초기화</span>
                     </button>
 
-                    <button onclick="toggleFullscreen()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-2.5 rounded-xl transition border border-slate-600">
+                    <button onclick="toggleFullscreen()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-2.5 rounded-xl transition border border-slate-600" title="전체 화면">
                         <i class="fa-solid fa-expand"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- Main Interactive Canvas & Leaderboard Grid -->
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <!-- Left: Word Cloud Display Canvas Container (9 cols) -->
                 <div class="lg:col-span-9 bg-slate-800/80 border border-slate-700 rounded-2xl p-4 shadow-2xl relative min-h-[460px] flex flex-col justify-between overflow-hidden">
                     <div class="absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none"></div>
 
@@ -258,7 +227,7 @@
                     </div>
 
                     <!-- Word Cloud Canvas -->
-                    <canvas id="wordCloudCanvas" class="w-full h-[480px] sm:h-[540px] z-20 cursor-grab active:cursor-grabbing relative"></canvas>
+                    <canvas id="wordCloudCanvas" class="w-full h-[480px] sm:h-[540px] z-20 relative"></canvas>
 
                     <!-- Live Floating Feed Bar -->
                     <div class="z-20 bg-slate-900/70 backdrop-blur border border-slate-700/80 rounded-xl p-2.5 flex items-center justify-between text-xs text-slate-300 mt-2">
@@ -277,7 +246,7 @@
                     </div>
                 </div>
 
-                <!-- Right: Top Words Leaderboard (3 cols) -->
+                <!-- Top Words Leaderboard -->
                 <div class="lg:col-span-3 flex flex-col">
                     <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl flex-grow space-y-3">
                         <div class="flex items-center justify-between border-b border-slate-700 pb-2">
@@ -293,10 +262,8 @@
             </div>
         </section>
 
-        <!-- 3. STUDENT SUBMISSION VIEW -->
         <section id="studentView" class="hidden my-auto py-4">
             <div class="max-w-md mx-auto bg-slate-800 border border-slate-700 rounded-3xl p-6 shadow-2xl space-y-6">
-                <!-- Header Info -->
                 <div class="text-center space-y-2">
                     <div class="inline-flex items-center gap-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs px-3 py-1 rounded-full font-semibold">
                         <i class="fa-solid fa-circle-check text-emerald-400 text-[10px]"></i>
@@ -324,12 +291,11 @@
                     </div>
                 </form>
 
-                <!-- Feedback Banner -->
                 <div id="submitFeedback" class="hidden bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 p-3 rounded-2xl text-xs text-center font-semibold animate-bounce-short">
                     🎉 선생님 화면에 성공적으로 전달되었습니다!
                 </div>
 
-                <!-- Student's Sent Words Tag List -->
+                <!-- Student's Sent Words List -->
                 <div class="space-y-2 border-t border-slate-700/80 pt-4">
                     <div class="text-xs text-slate-400 font-semibold flex justify-between items-center">
                         <span>내가 제출한 단어 목록</span>
@@ -353,10 +319,9 @@
 
             <div class="space-y-1">
                 <h3 class="text-xl font-extrabold text-white">스마트폰 QR 스캔 입장</h3>
-                <p class="text-xs text-slate-400">카메라 앱으로 아래 QR 코드를 찍어 접속하세요</p>
+                <p class="text-xs text-slate-400">카메라 앱으로 아래 QR 코드를 찍어 바로 접속하세요</p>
             </div>
 
-            <!-- Enlarged QR Code -->
             <div class="bg-white p-4 rounded-2xl inline-block shadow-xl border-4 border-indigo-500/40">
                 <canvas id="largeQrCanvas" class="w-64 h-64 sm:w-72 sm:h-72 block mx-auto"></canvas>
             </div>
@@ -399,28 +364,28 @@
                 <h3 class="text-lg font-bold text-white">수합된 전체 단어 목록</h3>
                 <button onclick="closeWordListModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
-            
-            <div id="fullWordsTable" class="max-h-72 overflow-y-auto space-y-2 text-xs">
-                <!-- Words rows injected here -->
-            </div>
+            <div id="fullWordsTable" class="max-h-72 overflow-y-auto space-y-2 text-xs"></div>
         </div>
     </div>
 
-    <!-- FOOTER -->
     <footer class="bg-slate-900 border-t border-slate-800/80 py-3 text-center text-xs text-slate-500">
         Before Reading Interactive Classroom Activity • Real-Time Word Cloud Engine
     </footer>
 
     <script>
-        // Color Palettes for Word Cloud
         const PALETTES = {
             vibrant: ['#6366f1', '#a855f7', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#f43f5e', '#06b6d4']
         };
 
         let canvas, ctx;
-
-        // Base domain target for GitHub Pages
         const TARGET_DOMAIN = "https://yeoussam.github.io/L6_BR/";
+
+        // Multi-broker endpoints for zero-config GitHub Pages connectivity (Port 443 HTTPS SSL friendly)
+        const MQTT_BROKERS = [
+            'wss://mqtt.eclipseprojects.io:443/mqtt',
+            'wss://broker.emqx.io:8084/mqtt',
+            'wss://broker.hivemq.com:8884/mqtt'
+        ];
 
         window.addEventListener('load', () => {
             canvas = document.getElementById('wordCloudCanvas');
@@ -429,17 +394,56 @@
                 window.addEventListener('resize', resizeCanvas);
             }
 
-            // Check URL parameters for room PIN
+            // Cross-tab broadcast listener for local browser tabs
+            if ('BroadcastChannel' in window) {
+                try {
+                    const bc = new BroadcastChannel('l6br_classroom_channel');
+                    bc.onmessage = (evt) => {
+                        if (evt.data && evt.data.type === 'word_submit' && evt.data.room === window.appState.roomId) {
+                            handleIncomingWord(evt.data.word, evt.data.id);
+                        }
+                    };
+                    window.appState.bc = bc;
+                } catch(e){}
+            }
+
+            // Check URL parameters & hash for existing sessions
             const urlParams = new URLSearchParams(window.location.search);
             const hash = window.location.hash;
             let targetRoom = urlParams.get('room');
-            if (!targetRoom && hash.startsWith('#room=')) {
-                targetRoom = hash.replace('#room=', '');
+            let roleParam = urlParams.get('role');
+
+            if (!targetRoom && hash.includes('room=')) {
+                const match = hash.match(/room=([0-9]{4})/);
+                if (match) targetRoom = match[1];
+            }
+            if (!roleParam && hash.includes('role=host')) {
+                roleParam = 'host';
             }
 
+            // Check saved active host session in localStorage
+            const savedSession = localStorage.getItem('l6br_active_session');
+            if (savedSession) {
+                try {
+                    const parsed = JSON.parse(savedSession);
+                    if (parsed && parsed.roomId) {
+                        const resumeBtn = document.getElementById('resumeSessionBtn');
+                        if (resumeBtn) {
+                            resumeBtn.classList.remove('hidden');
+                            resumeBtn.title = `기존 세션 (PIN: ${parsed.roomId}) 손쉽게 이어하기`;
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            // Auto-route based on URL parameters
             if (targetRoom) {
-                document.getElementById('pinInput').value = targetRoom;
-                joinAsStudent();
+                if (roleParam === 'host') {
+                    resumeHostSession(targetRoom);
+                } else {
+                    document.getElementById('pinInput').value = targetRoom;
+                    joinAsStudent();
+                }
             }
         });
 
@@ -453,12 +457,9 @@
             renderWordCloud();
         }
 
-        // --- NAVIGATION & ROUTING ---
         function goHome() {
-            if (window.appState && window.appState.unsubscribeDoc) {
-                window.appState.unsubscribeDoc();
-            }
-            if (window.appState) window.appState.role = 'landing';
+            window.appState.role = 'landing';
+            window.history.replaceState(null, '', window.location.pathname);
             document.getElementById('landingView').classList.remove('hidden');
             document.getElementById('hostView').classList.add('hidden');
             document.getElementById('studentView').classList.add('hidden');
@@ -468,16 +469,21 @@
             return Math.floor(1000 + Math.random() * 9000).toString();
         }
 
-        // Get full share URL for student landing
         function getShareUrl(roomId) {
             return `${TARGET_DOMAIN}?room=${roomId}`;
         }
 
-        // --- HOST / TEACHER LOGIC ---
-        async function startHostSession() {
+        // --- HOST SESSION MANAGEMENT WITH PERSISTENCE ---
+        async function startHostSession(isNew = true) {
             window.appState.role = 'host';
-            window.appState.roomId = generateRoomPin();
-            window.appState.wordsMap = {};
+            
+            if (isNew || !window.appState.roomId) {
+                window.appState.roomId = generateRoomPin();
+                window.appState.wordsMap = {};
+            }
+
+            saveSessionToStorage();
+            window.history.replaceState(null, '', `#room=${window.appState.roomId}&role=host`);
 
             document.getElementById('landingView').classList.add('hidden');
             document.getElementById('hostView').classList.remove('hidden');
@@ -492,10 +498,42 @@
                 renderSmallQrCode();
             }, 50);
 
-            // Real-time Sync Setup with Firestore
-            setupFirestoreRealtimeListener();
-
+            setupMultiBrokerCommunication();
             updateStatsAndCloud();
+        }
+
+        function resumeHostSession(forcedRoomId = null) {
+            const savedSession = localStorage.getItem('l6br_active_session');
+            if (savedSession) {
+                try {
+                    const parsed = JSON.parse(savedSession);
+                    window.appState.roomId = forcedRoomId || parsed.roomId;
+                    window.appState.topic = parsed.topic || window.appState.topic;
+                    window.appState.wordsMap = parsed.wordsMap || {};
+                } catch(e) {
+                    if (forcedRoomId) window.appState.roomId = forcedRoomId;
+                }
+            } else if (forcedRoomId) {
+                window.appState.roomId = forcedRoomId;
+            }
+
+            if (!window.appState.roomId) {
+                window.appState.roomId = generateRoomPin();
+            }
+
+            startHostSession(false);
+        }
+
+        function saveSessionToStorage() {
+            if (window.appState.role === 'host' && window.appState.roomId) {
+                const sessionData = {
+                    roomId: window.appState.roomId,
+                    topic: window.appState.topic,
+                    wordsMap: window.appState.wordsMap,
+                    updatedAt: Date.now()
+                };
+                localStorage.setItem('l6br_active_session', JSON.stringify(sessionData));
+            }
         }
 
         function renderSmallQrCode() {
@@ -509,45 +547,162 @@
                     foreground: '#0f172a'
                 });
             } catch (e) {
-                console.warn("Small QR generation error:", e);
+                console.warn("Small QR generation notice:", e);
             }
         }
 
-        function setupFirestoreRealtimeListener() {
-            if (window.appState.db && window.firestoreSDK) {
-                try {
-                    const { doc, setDoc, onSnapshot } = window.firestoreSDK;
-                    const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', window.appState.roomId);
-                    
-                    setDoc(roomDocRef, {
-                        topic: window.appState.topic,
-                        words: {},
-                        createdAt: Date.now()
-                    }).catch(e => console.warn("Doc init fallback:", e));
-
-                    if (window.appState.unsubscribeDoc) {
-                        window.appState.unsubscribeDoc();
-                    }
-
-                    window.appState.unsubscribeDoc = onSnapshot(roomDocRef, (snapshot) => {
-                        if (snapshot.exists()) {
-                            const data = snapshot.data();
-                            if (data.words) {
-                                window.appState.wordsMap = data.words;
-                                updateStatsAndCloud();
-                            }
-                            if (data.topic) {
-                                window.appState.topic = data.topic;
-                                document.getElementById('displayTopic').innerText = data.topic;
-                            }
-                        }
-                    }, (error) => {
-                        console.warn("Snapshot subscription error:", error);
-                    });
-                } catch (err) {
-                    console.warn("Firestore listener fallback:", err);
-                }
+        function setupMultiBrokerCommunication() {
+            const roomPin = window.appState.roomId;
+            
+            // Close old clients
+            if (window.appState.mqttClients && window.appState.mqttClients.length) {
+                window.appState.mqttClients.forEach(c => { try { c.end(); } catch(e){} });
             }
+            window.appState.mqttClients = [];
+
+            MQTT_BROKERS.forEach((brokerUrl) => {
+                try {
+                    const client = mqtt.connect(brokerUrl, {
+                        keepalive: 30,
+                        connectTimeout: 5000,
+                        clientId: 'l6br_' + Math.random().toString(16).substring(2, 8)
+                    });
+
+                    client.on('connect', () => {
+                        window.appState.mqttConnected = true;
+                        document.getElementById('statusText').innerText = "실시간 연동 완료";
+                        document.getElementById('statusPing').className = "w-2 h-2 rounded-full bg-emerald-400 animate-ping";
+
+                        if (window.appState.role === 'host') {
+                            client.subscribe(`yeoussam/l6br/${roomPin}/submit`);
+                            client.subscribe(`yeoussam/l6br/${roomPin}/request_sync`);
+                            broadcastHostState();
+                        } else if (window.appState.role === 'student') {
+                            client.subscribe(`yeoussam/l6br/${roomPin}/state`);
+                            client.publish(`yeoussam/l6br/${roomPin}/request_sync`, JSON.stringify({ ping: true }));
+                            flushOutboundQueue();
+                        }
+                    });
+
+                    client.on('message', (topic, payload) => {
+                        try {
+                            const msg = JSON.parse(payload.toString());
+                            if (window.appState.role === 'host') {
+                                if (topic.endsWith('/submit') && msg.word) {
+                                    handleIncomingWord(msg.word, msg.id || (msg.word + '_' + msg.timestamp));
+                                } else if (topic.endsWith('/request_sync')) {
+                                    broadcastHostState();
+                                }
+                            } else if (window.appState.role === 'student') {
+                                if (topic.endsWith('/state') && msg.topic) {
+                                    document.getElementById('studentTopicDisplay').innerText = msg.topic;
+                                }
+                            }
+                        } catch(e){}
+                    });
+
+                    window.appState.mqttClients.push(client);
+                } catch(e){}
+            });
+        }
+
+        function handleIncomingWord(rawWord, msgId) {
+            if (!rawWord) return;
+            const id = msgId || (rawWord.toLowerCase() + '_' + Date.now());
+            if (window.appState.processedMsgIds.has(id)) return;
+            
+            window.appState.processedMsgIds.add(id);
+            if (window.appState.processedMsgIds.size > 500) {
+                const oldest = window.appState.processedMsgIds.values().next().value;
+                window.appState.processedMsgIds.delete(oldest);
+            }
+
+            const word = rawWord.trim();
+            if (!word) return;
+
+            window.appState.wordsMap[word] = (window.appState.wordsMap[word] || 0) + 1;
+            saveSessionToStorage();
+            updateStatsAndCloud();
+            broadcastHostState();
+        }
+
+        function broadcastHostState() {
+            const payload = JSON.stringify({
+                topic: window.appState.topic,
+                words: window.appState.wordsMap,
+                timestamp: Date.now()
+            });
+
+            window.appState.mqttClients.forEach(c => {
+                if (c && c.connected) {
+                    try {
+                        c.publish(`yeoussam/l6br/${window.appState.roomId}/state`, payload);
+                    } catch(e){}
+                }
+            });
+        }
+
+        function publishStudentWord(word, msgId) {
+            const payload = JSON.stringify({
+                word: word,
+                id: msgId,
+                timestamp: Date.now()
+            });
+
+            let sent = false;
+            window.appState.mqttClients.forEach(c => {
+                if (c && c.connected) {
+                    try {
+                        c.publish(`yeoussam/l6br/${window.appState.roomId}/submit`, payload);
+                        sent = true;
+                    } catch(e){}
+                }
+            });
+
+            // Local BroadcastChannel trigger for test on same machine
+            if (window.appState.bc) {
+                try {
+                    window.appState.bc.postMessage({ type: 'word_submit', room: window.appState.roomId, word: word, id: msgId });
+                } catch(e){}
+            }
+
+            if (!sent) {
+                window.appState.outboundQueue.push({ word, msgId });
+            }
+        }
+
+        function flushOutboundQueue() {
+            if (!window.appState.outboundQueue.length) return;
+            const queue = [...window.appState.outboundQueue];
+            window.appState.outboundQueue = [];
+            queue.forEach(item => publishStudentWord(item.word, item.msgId));
+        }
+
+        function refreshCloudOnly() {
+            const icon = document.getElementById('refreshCloudIcon');
+            if (icon) icon.classList.add('animate-spin');
+
+            // Restore/Verify latest from storage
+            const saved = localStorage.getItem('l6br_active_session');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && parsed.wordsMap && window.appState.role === 'host') {
+                        Object.assign(window.appState.wordsMap, parsed.wordsMap);
+                    }
+                } catch(e){}
+            }
+
+            resizeCanvas();
+            updateStatsAndCloud();
+
+            if (window.appState.role === 'host') {
+                broadcastHostState();
+            }
+
+            setTimeout(() => {
+                if (icon) icon.classList.remove('animate-spin');
+            }, 500);
         }
 
         function updateStatsAndCloud() {
@@ -565,7 +720,7 @@
                 emptyNotice.classList.remove('hidden');
             }
 
-            // Update Top 5 Leaderboard
+            // Top 5 Leaderboard
             const sorted = [...entries].sort((a, b) => b[1] - a[1]);
             const top5 = sorted.slice(0, 5);
             const top5ListEl = document.getElementById('topWordsList');
@@ -621,7 +776,6 @@
 
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
-
             const placedBoxes = [];
 
             const maxFontSize = Math.min(canvas.width / 6, canvas.height / 5, 68);
@@ -695,7 +849,6 @@
             });
         }
 
-        // --- STUDENT LOGIC ---
         async function joinAsStudent() {
             const pin = document.getElementById('pinInput').value.trim();
             if (!pin || pin.length !== 4) {
@@ -711,25 +864,7 @@
             document.getElementById('hostView').classList.add('hidden');
             document.getElementById('studentView').classList.remove('hidden');
 
-            if (window.appState.db && window.firestoreSDK) {
-                const { doc, getDoc, onSnapshot } = window.firestoreSDK;
-                const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', pin);
-                try {
-                    const snap = await getDoc(roomDocRef);
-                    if (snap.exists()) {
-                        const data = snap.data();
-                        document.getElementById('studentTopicDisplay').innerText = data.topic || window.appState.topic;
-                    }
-
-                    window.appState.unsubscribeDoc = onSnapshot(roomDocRef, (s) => {
-                        if (s.exists() && s.data().topic) {
-                            document.getElementById('studentTopicDisplay').innerText = s.data().topic;
-                        }
-                    });
-                } catch (e) {
-                    console.error("Room fetch error:", e);
-                }
-            }
+            setupMultiBrokerCommunication();
         }
 
         async function handleWordSubmit(e) {
@@ -742,33 +877,12 @@
             let word = rawWord.replace(/[^\w가-힣\s-]/gi, '');
             if (word.length === 0) return;
 
+            const msgId = 'std_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+            
             addSubmittedTagToStudentUI(word);
             input.value = '';
 
-            if (window.appState.db && window.firestoreSDK) {
-                const { doc, getDoc, updateDoc, setDoc } = window.firestoreSDK;
-                const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', window.appState.roomId);
-                try {
-                    const snap = await getDoc(roomDocRef);
-                    let currentWords = {};
-                    if (snap.exists() && snap.data().words) {
-                        currentWords = snap.data().words;
-                    }
-                    
-                    currentWords[word] = (currentWords[word] || 0) + 1;
-
-                    if (snap.exists()) {
-                        await updateDoc(roomDocRef, { words: currentWords });
-                    } else {
-                        await setDoc(roomDocRef, { topic: window.appState.topic, words: currentWords, createdAt: Date.now() });
-                    }
-                } catch (err) {
-                    console.warn("Update doc fallback:", err);
-                    window.appState.wordsMap[word] = (window.appState.wordsMap[word] || 0) + 1;
-                }
-            } else {
-                window.appState.wordsMap[word] = (window.appState.wordsMap[word] || 0) + 1;
-            }
+            publishStudentWord(word, msgId);
 
             try {
                 confetti({
@@ -808,23 +922,10 @@
             ];
 
             sampleWords.forEach((w) => {
-                window.appState.wordsMap[w] = (window.appState.wordsMap[w] || 0) + 1;
+                handleIncomingWord(w, 'demo_' + Math.random().toString(36).substr(2, 9));
             });
-
-            updateStatsAndCloud();
-
-            if (window.appState.db && window.appState.roomId && window.firestoreSDK) {
-                try {
-                    const { doc, updateDoc } = window.firestoreSDK;
-                    const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', window.appState.roomId);
-                    await updateDoc(roomDocRef, { words: window.appState.wordsMap });
-                } catch (err) {
-                    console.warn("Demo sync warning:", err);
-                }
-            }
         }
 
-        // --- QR MODAL FUNCTIONS ---
         function openQrModal() {
             const modal = document.getElementById('qrModal');
             modal.classList.remove('hidden');
@@ -838,16 +939,13 @@
                     backgroundAlpha: 0,
                     foreground: '#0f172a'
                 });
-            } catch (e) {
-                console.warn("Large QR generation error:", e);
-            }
+            } catch (e) {}
         }
 
         function closeQrModal() {
             document.getElementById('qrModal').classList.add('hidden');
         }
 
-        // --- UTILITY MODALS & ACTIONS ---
         function openEditTopicModal() {
             document.getElementById('editTopicInput').value = window.appState.topic;
             document.getElementById('editTopicModal').classList.remove('hidden');
@@ -863,19 +961,13 @@
 
             window.appState.topic = newTopic;
             document.getElementById('displayTopic').innerText = newTopic;
-
-            if (window.appState.db && window.appState.roomId && window.firestoreSDK) {
-                const { doc, updateDoc } = window.firestoreSDK;
-                const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', window.appState.roomId);
-                await updateDoc(roomDocRef, { topic: newTopic }).catch(() => {});
-            }
-
+            saveSessionToStorage();
+            broadcastHostState();
             closeEditTopicModal();
         }
 
         function openResetConfirmModal() {
             const modal = document.createElement('div');
-            modal.id = 'resetConfirmModal';
             modal.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur z-50 flex items-center justify-center p-4';
             modal.innerHTML = `
                 <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl">
@@ -897,22 +989,14 @@
 
         async function executeResetWords() {
             window.appState.wordsMap = {};
+            saveSessionToStorage();
             
             if (ctx && canvas) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             }
 
-            if (window.appState.db && window.appState.roomId && window.firestoreSDK) {
-                try {
-                    const { doc, updateDoc } = window.firestoreSDK;
-                    const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', window.appState.roomId);
-                    await updateDoc(roomDocRef, { words: {} });
-                } catch (err) {
-                    console.warn("Reset doc update warning:", err);
-                }
-            }
-
             updateStatsAndCloud();
+            broadcastHostState();
         }
 
         function copyShareLink() {
@@ -954,12 +1038,9 @@
 
         async function deleteSingleWord(wordKey) {
             delete window.appState.wordsMap[wordKey];
-            if (window.appState.db && window.appState.roomId && window.firestoreSDK) {
-                const { doc, updateDoc } = window.firestoreSDK;
-                const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', window.appState.roomId);
-                await updateDoc(roomDocRef, { words: window.appState.wordsMap }).catch(() => {});
-            }
+            saveSessionToStorage();
             updateStatsAndCloud();
+            broadcastHostState();
             openWordListModal();
         }
 
