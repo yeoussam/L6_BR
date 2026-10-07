@@ -22,9 +22,6 @@
             from { transform: translateY(0); }
             to { transform: translateY(-6px); }
         }
-        .word-tag {
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
         /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
@@ -38,9 +35,6 @@
             background: rgba(0,0,0,0.2);
             border-radius: 4px;
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(0,0,0,0.4);
-        }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between overflow-x-hidden">
@@ -50,10 +44,21 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase Configuration & Setup
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'wordcloud-app-v1';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        // Global Application State Initialization
+        const platformAppId = typeof __app_id !== 'undefined' ? __app_id : 'wordcloud-class-l6br';
         
+        // Fallback Firebase configuration if running on custom hosting like GitHub Pages
+        const fallbackConfig = {
+            apiKey: "AIzaSyD-placeholder-key-for-standalone",
+            authDomain: "wordcloud-classroom.firebaseapp.com",
+            projectId: "wordcloud-classroom",
+            storageBucket: "wordcloud-classroom.appspot.com",
+            messagingSenderId: "1234567890",
+            appId: "1:1234567890:web:abcdef123456"
+        };
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : fallbackConfig;
+
         window.appState = {
             db: null,
             auth: null,
@@ -61,35 +66,35 @@
             role: 'landing', // landing, host, student
             roomId: '',
             topic: '"Zero-Waste"라고 하면 떠오르는 것은?',
-            wordsMap: {}, // { "green": 5, "nature": 3 }
+            wordsMap: {},
             theme: 'vibrant',
-            appId: appId,
-            isSimulating: false,
+            appId: platformAppId,
             unsubscribeDoc: null
         };
 
-        if (firebaseConfig) {
-            try {
-                const app = initializeApp(firebaseConfig);
-                window.appState.db = getFirestore(app);
-                window.appState.auth = getAuth(app);
+        // Expose SDK functions globally for window calls
+        window.firestoreSDK = { doc, setDoc, getDoc, updateDoc, onSnapshot, collection };
 
-                window.firestoreSDK = { doc, setDoc, getDoc, updateDoc, onSnapshot, collection };
+        try {
+            const app = initializeApp(firebaseConfig);
+            window.appState.db = getFirestore(app);
+            window.appState.auth = getAuth(app);
 
-                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (token) {
-                    await signInWithCustomToken(window.appState.auth, token);
-                } else {
-                    await signInAnonymously(window.appState.auth);
-                }
-
-                onAuthStateChanged(window.appState.auth, (u) => {
-                    window.appState.user = u;
-                    console.log("Auth user initialized:", u?.uid);
-                });
-            } catch (err) {
-                console.warn("Firestore initialization error, running in local fallback mode:", err);
+            const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+            if (token) {
+                await signInWithCustomToken(window.appState.auth, token).catch(() => signInAnonymously(window.appState.auth));
+            } else {
+                await signInAnonymously(window.appState.auth).catch(err => console.warn("Auth warning:", err));
             }
+
+            onAuthStateChanged(window.appState.auth, (u) => {
+                window.appState.user = u;
+                console.log("Firebase Auth established:", u?.uid);
+                const statusText = document.getElementById('statusText');
+                if (statusText) statusText.innerText = "실시간 연동 준비 완료";
+            });
+        } catch (err) {
+            console.warn("Firestore initialization notice - fallback mode active:", err);
         }
     </script>
 
@@ -102,16 +107,15 @@
                 </div>
                 <div>
                     <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-indigo-200 bg-clip-text text-transparent">
-                        Before Reading WordCloud
+                        Classroom WordCloud
                     </h1>
-                    <p class="text-xs text-slate-400">중학교 1학년 독해 전 어휘 브레인스토밍</p>
                 </div>
             </div>
 
             <div class="flex items-center gap-2">
-                <div id="connectionStatus" class="hidden sm:flex items-center gap-2 text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-full font-medium">
+                <div id="connectionStatus" class="flex items-center gap-2 text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-full font-medium">
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                    <span id="statusText">실시간 동기화 준비됨</span>
+                    <span id="statusText">실시간 브레인스토밍</span>
                 </div>
                 <button onclick="goHome()" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg transition border border-slate-600">
                     <i class="fa-solid fa-house mr-1"></i> 처음으로
@@ -123,14 +127,14 @@
     <!-- MAIN CONTAINER -->
     <main class="flex-grow flex flex-col p-4 sm:p-6 max-w-7xl mx-auto w-full">
 
-        <!-- 1. LANDING VIEW (Choice between Teacher/Host and Student) -->
+        <!-- 1. LANDING VIEW (Choice between Student and Teacher) -->
         <section id="landingView" class="my-auto py-8">
             <div class="max-w-2xl mx-auto text-center space-y-8">
                 <h2 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
                     <span class="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Join the Zero-Waste Challenge</span>
                 </h2>
 
-                <!-- Vertical Cards Layout (Student box prominent, Teacher box compact) -->
+                <!-- Vertical Cards Layout -->
                 <div class="flex flex-col gap-5 pt-2 text-left">
                     <!-- Student Box (Large & Prominent) -->
                     <div class="bg-slate-800/90 border-2 border-purple-500/40 hover:border-purple-500/80 rounded-3xl p-6 sm:p-8 transition shadow-2xl space-y-6">
@@ -192,23 +196,20 @@
                     </h2>
                 </div>
 
-                <!-- Compact QR Code & PIN Badge -->
-                <div onclick="openQrModal()" class="flex items-center gap-3 bg-slate-900/90 border border-slate-700 hover:border-indigo-500/80 rounded-xl p-2.5 shrink-0 shadow-inner cursor-pointer transition group" title="클릭하여 QR 코드 확대하기">
-                    <div class="bg-white p-1 rounded-lg border border-indigo-500/30 shrink-0 relative">
-                        <canvas id="qrCanvas" class="w-12 h-12"></canvas>
-                        <div class="absolute inset-0 bg-indigo-600/10 group-hover:bg-indigo-600/20 rounded-lg flex items-center justify-center transition">
-                            <i class="fa-solid fa-magnifying-glass-plus text-indigo-600 opacity-0 group-hover:opacity-100 transition text-sm"></i>
-                        </div>
+                <!-- Clickable QR Code & PIN Badge -->
+                <div id="qrHeaderBadge" onclick="openQrModal()" class="flex items-center gap-3 bg-slate-900/90 hover:bg-slate-900 border border-slate-700 hover:border-indigo-500/80 rounded-xl p-2.5 shrink-0 shadow-inner cursor-pointer transition group" title="클릭하면 QR코드가 크게 확대됩니다">
+                    <div class="bg-white p-1 rounded-lg border border-indigo-500/30 shrink-0 group-hover:scale-105 transition">
+                        <canvas id="qrCanvas" class="w-12 h-12 pointer-events-none"></canvas>
                     </div>
                     <div class="space-y-0.5">
                         <div class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
                             <span>참여 PIN 코드</span>
-                            <i class="fa-solid fa-expand text-[9px] opacity-70"></i>
+                            <i class="fa-solid fa-magnifying-glass-plus text-[9px]"></i>
                         </div>
                         <div id="displayRoomPin" class="text-xl font-mono font-black tracking-widest text-white leading-tight">----</div>
-                        <button onclick="event.stopPropagation(); copyShareLink()" class="text-[10px] text-slate-400 hover:text-indigo-300 font-semibold flex items-center gap-1 transition">
-                            <i class="fa-solid fa-link text-[9px]"></i> 링크 복사
-                        </button>
+                        <div class="text-[10px] text-slate-400 group-hover:text-indigo-300 font-semibold flex items-center gap-1 transition">
+                            <i class="fa-solid fa-expand text-[9px]"></i> QR 크게 보기
+                        </div>
                     </div>
                 </div>
 
@@ -240,11 +241,8 @@
 
             <!-- Main Interactive Canvas & Leaderboard Grid -->
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                
                 <!-- Left: Word Cloud Display Canvas Container (9 cols) -->
                 <div class="lg:col-span-9 bg-slate-800/80 border border-slate-700 rounded-2xl p-4 shadow-2xl relative min-h-[460px] flex flex-col justify-between overflow-hidden">
-                    
-                    <!-- Canvas backdrop subtle grid -->
                     <div class="absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none"></div>
 
                     <!-- Watermark / Empty state -->
@@ -253,7 +251,7 @@
                             <i class="fa-solid fa-cloud-arrow-up"></i>
                         </div>
                         <p class="text-slate-300 font-semibold text-lg">학생들이 단어를 입력하기 기다리는 중입니다...</p>
-                        <p class="text-xs text-slate-400 max-w-md">상단 QR코드나 PIN 코드로 학생들이 접속해 단어를 입력하면 커지는 단어 구름이 실시간으로 생성됩니다.</p>
+                        <p class="text-xs text-slate-400 max-w-md">상단 QR코드나 PIN 코드로 학생들이 접속해 단어를 입력하면 실시간으로 커지는 단어 구름이 나타납니다.</p>
                         <button onclick="triggerDemoSimulate()" class="pointer-events-auto mt-2 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 text-xs px-4 py-2 rounded-xl transition">
                             <i class="fa-solid fa-flask text-xs mr-1"></i> 테스트용 샘플 단어 10개 입력해보기
                         </button>
@@ -262,10 +260,10 @@
                     <!-- Word Cloud Canvas -->
                     <canvas id="wordCloudCanvas" class="w-full h-[480px] sm:h-[540px] z-20 cursor-grab active:cursor-grabbing relative"></canvas>
 
-                    <!-- Live Floating Feed Bar at bottom of Canvas -->
+                    <!-- Live Floating Feed Bar -->
                     <div class="z-20 bg-slate-900/70 backdrop-blur border border-slate-700/80 rounded-xl p-2.5 flex items-center justify-between text-xs text-slate-300 mt-2">
                         <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded font-bold shrink-0">최근 입고</span>
+                            <span class="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded font-bold shrink-0">실시간 최신</span>
                             <span id="latestSubmittedWord" class="truncate font-semibold text-slate-100">단어가 제출되면 여기에 표시됩니다.</span>
                         </div>
                         <div class="flex items-center gap-2 shrink-0 ml-2">
@@ -302,10 +300,10 @@
                 <div class="text-center space-y-2">
                     <div class="inline-flex items-center gap-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs px-3 py-1 rounded-full font-semibold">
                         <i class="fa-solid fa-circle-check text-emerald-400 text-[10px]"></i>
-                        <span>방 코드: <span id="studentRoomCodeDisplay" class="font-mono font-bold">----</span></span>
+                        <span>참여 방 PIN: <span id="studentRoomCodeDisplay" class="font-mono font-bold">----</span></span>
                     </div>
                     <h2 id="studentTopicDisplay" class="text-xl font-extrabold text-white leading-snug">
-                        주제를 불러오는 중...
+                        "Zero-Waste"라고 하면 떠오르는 것은?
                     </h2>
                     <p class="text-xs text-slate-400">이 주제와 연관되어 떠오르는 영어/한글 단어를 적어주세요!</p>
                 </div>
@@ -346,36 +344,33 @@
 
     </main>
 
-    <!-- MODAL 1: AI Prompt & Vocabulary Generator -->
-    <div id="aiModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 max-w-lg w-full space-y-5 shadow-2xl">
-            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
-                <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i>
-                    </div>
-                    <h3 class="text-lg font-bold text-white">AI Before Reading 아이디어 추천</h3>
-                </div>
-                <button onclick="closeAiModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
-            </div>
-
-            <p class="text-xs text-slate-300 leading-relaxed">
-                현재 독해 주제(<span id="aiModalCurrentTopic" class="text-indigo-300 font-bold"></span>)와 연관하여, 중1 학생들이 떠올릴 만한 핵심 영어/국어 어휘 추천 리스트 및 수업 발문 아이디어를 AI가 생성합니다.
-            </p>
-
-            <button id="aiGenerateBtn" onclick="runGeminiAiSuggest()" class="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition shadow flex items-center justify-center gap-2 text-sm">
-                <span>AI 아이디어 생성하기</span>
-                <i class="fa-solid fa-sparkles"></i>
+    <!-- MODAL 1: Enlarged QR Code Modal -->
+    <div id="qrModal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center space-y-6 shadow-2xl relative">
+            <button onclick="closeQrModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl w-8 h-8 rounded-full bg-slate-700/50 flex items-center justify-center transition">
+                <i class="fa-solid fa-xmark"></i>
             </button>
 
-            <!-- Loading Spinner -->
-            <div id="aiLoading" class="hidden text-center py-6 space-y-2">
-                <i class="fa-solid fa-circle-notch fa-spin text-pink-400 text-2xl"></i>
-                <p class="text-xs text-slate-400">Gemini AI가 어휘 아이디어를 생각 중입니다...</p>
+            <div class="space-y-1">
+                <h3 class="text-xl font-extrabold text-white">스마트폰 QR 스캔 입장</h3>
+                <p class="text-xs text-slate-400">카메라 앱으로 아래 QR 코드를 찍어 접속하세요</p>
             </div>
 
-            <!-- AI Result -->
-            <div id="aiResultArea" class="hidden space-y-3 max-h-60 overflow-y-auto bg-slate-900/80 border border-slate-700/80 rounded-2xl p-4 text-xs text-slate-300 leading-relaxed">
+            <!-- Enlarged QR Code -->
+            <div class="bg-white p-4 rounded-2xl inline-block shadow-xl border-4 border-indigo-500/40">
+                <canvas id="largeQrCanvas" class="w-64 h-64 sm:w-72 sm:h-72 block mx-auto"></canvas>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-700 rounded-2xl p-3.5 space-y-1">
+                <div class="text-xs text-indigo-400 font-bold uppercase tracking-wider">참여 PIN 코드</div>
+                <div id="modalRoomPin" class="text-3xl font-mono font-black text-white tracking-widest">----</div>
+            </div>
+
+            <div class="pt-1">
+                <button onclick="copyShareLink()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-3 rounded-xl text-xs transition border border-slate-600 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-link"></i>
+                    <span>접속 링크 복사하기</span>
+                </button>
             </div>
         </div>
     </div>
@@ -384,7 +379,7 @@
     <div id="editTopicModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl">
             <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                <i class="fa-solid fa-pen-to-square text-indigo-400"></i> 수업 주제 및 발문 변경
+                <i class="fa-solid fa-pen-to-square text-indigo-400"></i> 수업 주제 변경
             </h3>
             <div class="space-y-2">
                 <label class="text-xs text-slate-400">학생들에게 보여줄 Before Reading 질문/주제</label>
@@ -411,52 +406,22 @@
         </div>
     </div>
 
-    <!-- MODAL 4: QR Code Zoom Modal -->
-    <div id="qrModal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4" onclick="closeQrModal(event)">
-        <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 max-w-sm w-full text-center space-y-5 shadow-2xl relative" onclick="event.stopPropagation()">
-            <button onclick="closeQrModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl p-2 transition">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-            <div class="space-y-1">
-                <span class="text-xs font-bold text-indigo-400 uppercase tracking-wider">스마트폰 카메라로 스캔하세요</span>
-                <h3 class="text-xl font-extrabold text-white">학생 접속 QR 코드</h3>
-            </div>
-            
-            <div class="bg-white p-4 rounded-2xl border-4 border-indigo-500/30 inline-block shadow-2xl">
-                <canvas id="qrZoomCanvas" class="w-64 h-64 sm:w-72 sm:h-72"></canvas>
-            </div>
-
-            <div class="bg-slate-900/90 border border-slate-700 rounded-2xl p-3 space-y-1">
-                <div class="text-xs text-slate-400">참여 PIN 코드</div>
-                <div id="zoomRoomPin" class="text-3xl font-mono font-black tracking-widest text-indigo-400">----</div>
-            </div>
-
-            <p id="zoomShareUrl" class="text-[11px] text-slate-400 break-all bg-slate-900/60 p-2.5 rounded-xl font-mono border border-slate-700/50"></p>
-
-            <button onclick="copyShareLink()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white font-bold py-3 rounded-xl text-sm transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2">
-                <i class="fa-solid fa-copy"></i>
-                <span>접속 링크 복사하기</span>
-            </button>
-        </div>
-    </div>
-
     <!-- FOOTER -->
     <footer class="bg-slate-900 border-t border-slate-800/80 py-3 text-center text-xs text-slate-500">
-        Before Reading Interactive Classroom Activity • Powered by Real-Time Word Cloud Engine
+        Before Reading Interactive Classroom Activity • Real-Time Word Cloud Engine
     </footer>
 
     <script>
-        // Color Palettes for Themes
+        // Color Palettes for Word Cloud
         const PALETTES = {
-            vibrant: ['#6366f1', '#a855f7', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
-            neon: ['#00f3ff', '#ff007f', '#00ff66', '#ffdd00', '#bf00ff', '#ff5500'],
-            pastel: ['#93c5fd', '#c4b5fd', '#f472b6', '#6ee7b7', '#fde047', '#fda4af'],
-            ocean: ['#38bdf8', '#818cf8', '#2dd4bf', '#60a5fa', '#a7f3d0', '#c084fc']
+            vibrant: ['#6366f1', '#a855f7', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#f43f5e', '#06b6d4']
         };
 
         let canvas, ctx;
 
-        // Initialize Canvas
+        // Base domain target for GitHub Pages
+        const TARGET_DOMAIN = "https://yeoussam.github.io/L6_BR/";
+
         window.addEventListener('load', () => {
             canvas = document.getElementById('wordCloudCanvas');
             if (canvas) {
@@ -464,7 +429,7 @@
                 window.addEventListener('resize', resizeCanvas);
             }
 
-            // Check if URL has #room=1234 or ?room=1234
+            // Check URL parameters for room PIN
             const urlParams = new URLSearchParams(window.location.search);
             const hash = window.location.hash;
             let targetRoom = urlParams.get('room');
@@ -490,10 +455,10 @@
 
         // --- NAVIGATION & ROUTING ---
         function goHome() {
-            if (window.appState.unsubscribeDoc) {
+            if (window.appState && window.appState.unsubscribeDoc) {
                 window.appState.unsubscribeDoc();
             }
-            window.appState.role = 'landing';
+            if (window.appState) window.appState.role = 'landing';
             document.getElementById('landingView').classList.remove('hidden');
             document.getElementById('hostView').classList.add('hidden');
             document.getElementById('studentView').classList.add('hidden');
@@ -503,14 +468,9 @@
             return Math.floor(1000 + Math.random() * 9000).toString();
         }
 
-        function getJoinUrl(roomId) {
-            let baseUrl = window.location.origin + window.location.pathname;
-            if (!baseUrl || baseUrl === 'null' || window.location.protocol === 'file:' || baseUrl.includes('localhost') || baseUrl.includes('about:blank')) {
-                baseUrl = 'https://yeoussam.github.io/L6_BR/';
-            }
-            baseUrl = baseUrl.replace(/index\.html$/, '');
-            if (!baseUrl.endsWith('/')) baseUrl += '/';
-            return `${baseUrl}?room=${roomId}`;
+        // Get full share URL for student landing
+        function getShareUrl(roomId) {
+            return `${TARGET_DOMAIN}?room=${roomId}`;
         }
 
         // --- HOST / TEACHER LOGIC ---
@@ -525,36 +485,45 @@
 
             document.getElementById('displayTopic').innerText = window.appState.topic;
             document.getElementById('displayRoomPin').innerText = window.appState.roomId;
+            document.getElementById('modalRoomPin').innerText = window.appState.roomId;
 
             setTimeout(() => {
                 resizeCanvas();
+                renderSmallQrCode();
             }, 50);
 
-            // Generate QR Code safely
+            // Real-time Sync Setup with Firestore
+            setupFirestoreRealtimeListener();
+
+            updateStatsAndCloud();
+        }
+
+        function renderSmallQrCode() {
             try {
-                const joinUrl = getJoinUrl(window.appState.roomId);
+                const joinUrl = getShareUrl(window.appState.roomId);
                 new QRious({
                     element: document.getElementById('qrCanvas'),
                     value: joinUrl,
-                    size: 120,
+                    size: 100,
                     backgroundAlpha: 0,
                     foreground: '#0f172a'
                 });
             } catch (e) {
-                console.warn("QR code generation warning:", e);
+                console.warn("Small QR generation error:", e);
             }
+        }
 
-            // Initialize Firestore listener for this room safely
+        function setupFirestoreRealtimeListener() {
             if (window.appState.db && window.firestoreSDK) {
                 try {
                     const { doc, setDoc, onSnapshot } = window.firestoreSDK;
                     const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', window.appState.roomId);
                     
-                    await setDoc(roomDocRef, {
+                    setDoc(roomDocRef, {
                         topic: window.appState.topic,
                         words: {},
                         createdAt: Date.now()
-                    });
+                    }).catch(e => console.warn("Doc init fallback:", e));
 
                     if (window.appState.unsubscribeDoc) {
                         window.appState.unsubscribeDoc();
@@ -573,14 +542,12 @@
                             }
                         }
                     }, (error) => {
-                        console.warn("Snapshot subscription warning:", error);
+                        console.warn("Snapshot subscription error:", error);
                     });
                 } catch (err) {
-                    console.warn("Firestore initialization fallback:", err);
+                    console.warn("Firestore listener fallback:", err);
                 }
             }
-
-            updateStatsAndCloud();
         }
 
         function updateStatsAndCloud() {
@@ -607,14 +574,14 @@
                 top5ListEl.innerHTML = `<li class="text-slate-500 text-center py-4">아직 제출된 단어가 없습니다.</li>`;
             } else {
                 top5ListEl.innerHTML = top5.map(([word, count], idx) => `
-                    <li class="flex items-center justify-between bg-slate-900/60 p-2 rounded-xl border border-slate-700/50">
+                    <li class="flex items-center justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50">
                         <div class="flex items-center gap-2 truncate">
                             <span class="w-5 h-5 rounded-full ${idx === 0 ? 'bg-amber-500 text-slate-950 font-black' : 'bg-slate-700 text-slate-300'} text-[10px] flex items-center justify-center shrink-0">
                                 ${idx + 1}
                             </span>
                             <span class="font-bold text-slate-100 truncate">${escapeHtml(word)}</span>
                         </div>
-                        <span class="bg-indigo-500/20 text-indigo-300 font-extrabold px-2 py-0.5 rounded text-[11px]">
+                        <span class="bg-indigo-500/20 text-indigo-300 font-extrabold px-2.5 py-0.5 rounded text-[11px]">
                             ${count}회
                         </span>
                     </li>
@@ -633,7 +600,6 @@
         function renderWordCloud() {
             if (!ctx || !canvas) return;
             
-            // Adjust canvas resolution based on display bounds
             const rect = canvas.getBoundingClientRect();
             if (rect.width > 0 && rect.height > 0) {
                 if (canvas.width !== Math.floor(rect.width) || canvas.height !== Math.floor(rect.height)) {
@@ -647,19 +613,17 @@
             const words = Object.entries(window.appState.wordsMap);
             if (words.length === 0) return;
 
-            // Sort words by count descending
             words.sort((a, b) => b[1] - a[1]);
 
             const maxCount = words[0][1];
             const minCount = words[words.length - 1][1];
-            const palette = PALETTES[window.appState.theme] || PALETTES.vibrant;
+            const palette = PALETTES.vibrant;
 
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
 
             const placedBoxes = [];
 
-            // Adaptive font bounds
             const maxFontSize = Math.min(canvas.width / 6, canvas.height / 5, 68);
             const minFontSize = Math.max(16, maxFontSize / 3.2);
 
@@ -679,12 +643,10 @@
                 let angle = index * 0.5;
                 let radius = 0;
 
-                // Spiral algorithm for non-overlapping layout
                 for (let step = 0; step < 350; step++) {
                     const px = centerX + radius * Math.cos(angle) - wordWidth / 2;
                     const py = centerY + radius * Math.sin(angle) - wordHeight / 2;
 
-                    // Ensure word stays bounded within visible canvas padded rectangle
                     if (px >= 12 && px + wordWidth <= canvas.width - 12 &&
                         py >= 12 && py + wordHeight <= canvas.height - 12) {
                         
@@ -713,7 +675,6 @@
                     radius += 1.4;
                 }
 
-                // If collision couldn't be completely avoided, clamp position inside canvas boundaries
                 if (!placed) {
                     bestX = Math.max(12, Math.min(canvas.width - wordWidth - 12, centerX + (Math.random() - 0.5) * (canvas.width * 0.5) - wordWidth / 2));
                     bestY = Math.max(12, Math.min(canvas.height - wordHeight - 12, centerY + (Math.random() - 0.5) * (canvas.height * 0.5) - wordHeight / 2));
@@ -721,7 +682,6 @@
 
                 placedBoxes.push({ x: bestX, y: bestY, w: wordWidth, h: wordHeight });
 
-                // Render styled text with glow effect
                 const color = palette[index % palette.length];
                 ctx.save();
                 ctx.shadowColor = color;
@@ -751,7 +711,6 @@
             document.getElementById('hostView').classList.add('hidden');
             document.getElementById('studentView').classList.remove('hidden');
 
-            // Connect to Firestore room
             if (window.appState.db && window.firestoreSDK) {
                 const { doc, getDoc, onSnapshot } = window.firestoreSDK;
                 const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', pin);
@@ -760,21 +719,16 @@
                     if (snap.exists()) {
                         const data = snap.data();
                         document.getElementById('studentTopicDisplay').innerText = data.topic || window.appState.topic;
-                    } else {
-                        document.getElementById('studentTopicDisplay').innerText = "자유로운 어휘 제출 방";
                     }
 
-                    // Real-time listener for topic updates
                     window.appState.unsubscribeDoc = onSnapshot(roomDocRef, (s) => {
                         if (s.exists() && s.data().topic) {
                             document.getElementById('studentTopicDisplay').innerText = s.data().topic;
                         }
                     });
                 } catch (e) {
-                    console.error("Room fetch failed:", e);
+                    console.error("Room fetch error:", e);
                 }
-            } else {
-                document.getElementById('studentTopicDisplay').innerText = window.appState.topic;
             }
         }
 
@@ -785,39 +739,44 @@
 
             if (!rawWord) return;
 
-            // Clean word
             let word = rawWord.replace(/[^\w가-힣\s-]/gi, '');
             if (word.length === 0) return;
 
             addSubmittedTagToStudentUI(word);
             input.value = '';
 
-            // Update state
             if (window.appState.db && window.firestoreSDK) {
-                const { doc, getDoc, updateDoc } = window.firestoreSDK;
+                const { doc, getDoc, updateDoc, setDoc } = window.firestoreSDK;
                 const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', window.appState.roomId);
                 try {
                     const snap = await getDoc(roomDocRef);
-                    let currentWords = snap.exists() && snap.data().words ? snap.data().words : {};
+                    let currentWords = {};
+                    if (snap.exists() && snap.data().words) {
+                        currentWords = snap.data().words;
+                    }
                     
                     currentWords[word] = (currentWords[word] || 0) + 1;
 
-                    await updateDoc(roomDocRef, { words: currentWords });
+                    if (snap.exists()) {
+                        await updateDoc(roomDocRef, { words: currentWords });
+                    } else {
+                        await setDoc(roomDocRef, { topic: window.appState.topic, words: currentWords, createdAt: Date.now() });
+                    }
                 } catch (err) {
-                    console.warn("Update doc failed, falling back to local state:", err);
+                    console.warn("Update doc fallback:", err);
                     window.appState.wordsMap[word] = (window.appState.wordsMap[word] || 0) + 1;
-                    updateStatsAndCloud();
                 }
             } else {
                 window.appState.wordsMap[word] = (window.appState.wordsMap[word] || 0) + 1;
-                updateStatsAndCloud();
             }
 
-            confetti({
-                particleCount: 25,
-                spread: 60,
-                origin: { y: 0.8 }
-            });
+            try {
+                confetti({
+                    particleCount: 25,
+                    spread: 60,
+                    origin: { y: 0.8 }
+                });
+            } catch (err) {}
 
             const feedback = document.getElementById('submitFeedback');
             feedback.classList.remove('hidden');
@@ -854,16 +813,38 @@
 
             updateStatsAndCloud();
 
-            // Sync sample words to Firestore if active
             if (window.appState.db && window.appState.roomId && window.firestoreSDK) {
                 try {
                     const { doc, updateDoc } = window.firestoreSDK;
                     const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', window.appState.roomId);
                     await updateDoc(roomDocRef, { words: window.appState.wordsMap });
                 } catch (err) {
-                    console.warn("Demo sync to Firestore warning:", err);
+                    console.warn("Demo sync warning:", err);
                 }
             }
+        }
+
+        // --- QR MODAL FUNCTIONS ---
+        function openQrModal() {
+            const modal = document.getElementById('qrModal');
+            modal.classList.remove('hidden');
+
+            try {
+                const joinUrl = getShareUrl(window.appState.roomId);
+                new QRious({
+                    element: document.getElementById('largeQrCanvas'),
+                    value: joinUrl,
+                    size: 300,
+                    backgroundAlpha: 0,
+                    foreground: '#0f172a'
+                });
+            } catch (e) {
+                console.warn("Large QR generation error:", e);
+            }
+        }
+
+        function closeQrModal() {
+            document.getElementById('qrModal').classList.add('hidden');
         }
 
         // --- UTILITY MODALS & ACTIONS ---
@@ -886,13 +867,12 @@
             if (window.appState.db && window.appState.roomId && window.firestoreSDK) {
                 const { doc, updateDoc } = window.firestoreSDK;
                 const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', window.appState.roomId);
-                await updateDoc(roomDocRef, { topic: newTopic });
+                await updateDoc(roomDocRef, { topic: newTopic }).catch(() => {});
             }
 
             closeEditTopicModal();
         }
 
-        // Custom Reset Confirmation Modal to avoid browser confirm() iframe blocks
         function openResetConfirmModal() {
             const modal = document.createElement('div');
             modal.id = 'resetConfirmModal';
@@ -915,20 +895,13 @@
             document.body.appendChild(modal);
         }
 
-        function confirmResetWords() {
-            openResetConfirmModal();
-        }
-
         async function executeResetWords() {
-            // Clear local data
             window.appState.wordsMap = {};
             
-            // Clear canvas graphics immediately
             if (ctx && canvas) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             }
 
-            // Sync with Firestore if active
             if (window.appState.db && window.appState.roomId && window.firestoreSDK) {
                 try {
                     const { doc, updateDoc } = window.firestoreSDK;
@@ -939,12 +912,11 @@
                 }
             }
 
-            // Update UI & Leaderboard
             updateStatsAndCloud();
         }
 
         function copyShareLink() {
-            const joinUrl = getJoinUrl(window.appState.roomId);
+            const joinUrl = getShareUrl(window.appState.roomId);
             const tempInput = document.createElement("input");
             document.body.appendChild(tempInput);
             tempInput.value = joinUrl;
@@ -953,34 +925,6 @@
             document.body.removeChild(tempInput);
 
             alertModal("접속 링크가 클립보드에 복사되었습니다!\n학생들에게 전달하세요.");
-        }
-
-        function openQrModal() {
-            const joinUrl = getJoinUrl(window.appState.roomId);
-            const modalCanvas = document.getElementById('qrZoomCanvas');
-            
-            try {
-                new QRious({
-                    element: modalCanvas,
-                    value: joinUrl,
-                    size: 320,
-                    backgroundAlpha: 0,
-                    foreground: '#0f172a'
-                });
-            } catch (e) {
-                console.warn("QR zoom generation error:", e);
-            }
-
-            document.getElementById('zoomRoomPin').innerText = window.appState.roomId;
-            document.getElementById('zoomShareUrl').innerText = joinUrl;
-            document.getElementById('qrModal').classList.remove('hidden');
-        }
-
-        function closeQrModal(e) {
-            if (e && e.target && e.target !== e.currentTarget && e.target.tagName !== 'I' && !e.target.classList.contains('fa-xmark')) {
-                return;
-            }
-            document.getElementById('qrModal').classList.add('hidden');
         }
 
         function openWordListModal() {
@@ -1013,7 +957,7 @@
             if (window.appState.db && window.appState.roomId && window.firestoreSDK) {
                 const { doc, updateDoc } = window.firestoreSDK;
                 const roomDocRef = doc(window.appState.db, 'artifacts', window.appState.appId, 'public', 'data', 'wordcloud_rooms', window.appState.roomId);
-                await updateDoc(roomDocRef, { words: window.appState.wordsMap });
+                await updateDoc(roomDocRef, { words: window.appState.wordsMap }).catch(() => {});
             }
             updateStatsAndCloud();
             openWordListModal();
@@ -1021,10 +965,10 @@
 
         function toggleFullscreen() {
             if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
+                document.documentElement.requestFullscreen().catch(() => {});
             } else {
                 if (document.exitFullscreen) {
-                    document.exitFullscreen();
+                    document.exitFullscreen().catch(() => {});
                 }
             }
         }
